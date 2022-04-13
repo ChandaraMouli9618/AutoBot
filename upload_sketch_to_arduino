@@ -1,0 +1,239 @@
+//                      Entire code fails when no.of opeations is greater then 128...
+
+
+
+#define en1 4
+#define en2 8
+#define in1 5
+#define in2 6
+#define in3 11
+#define in4 10
+#define an_val 255
+#define an_val2 255
+
+
+char modeSelector = 'X';
+byte data = '0';
+byte  pathArray[100];
+long timeArray[100];
+
+void setup() {
+  pinMode(en1,OUTPUT);
+  pinMode(en2,OUTPUT);
+  pinMode(in1,OUTPUT);
+  pinMode(in2,OUTPUT);
+  pinMode(in3,OUTPUT);
+  pinMode(in4,OUTPUT);
+  Serial.begin(9600);
+}
+
+  void backward(){
+    digitalWrite(en1,HIGH);
+    analogWrite(in1,an_val);
+    digitalWrite(in2,LOW);
+    digitalWrite(en2,HIGH);
+    digitalWrite(in3,LOW);
+    analogWrite(in4,an_val2);
+  }
+  void foreward(){
+    digitalWrite(en1,HIGH);
+    digitalWrite(in1,LOW);
+    analogWrite(in2,an_val);
+    digitalWrite(en2,HIGH);
+    analogWrite(in3,an_val2);
+    digitalWrite(in4,LOW);
+  }
+  void right(){
+    digitalWrite(en1,LOW);
+    digitalWrite(in1,LOW);
+    digitalWrite(in2,LOW);
+    digitalWrite(en2,HIGH);
+    analogWrite(in3,an_val2);
+    digitalWrite(in4,LOW);
+  }
+  void counterRight(){
+    digitalWrite(en1,LOW);
+    digitalWrite(in1,LOW);
+    digitalWrite(in2,LOW);
+    digitalWrite(en2,HIGH);
+    analogWrite(in3,LOW);
+    digitalWrite(in4,an_val2);
+  }
+  void left(){
+    digitalWrite(en1,HIGH);
+    digitalWrite(in1,LOW);
+    analogWrite(in2,an_val);
+    digitalWrite(en2,LOW);
+    digitalWrite(in3,LOW);
+    digitalWrite(in4,LOW);
+  }
+  void counterLeft(){
+    digitalWrite(en1,HIGH);
+    digitalWrite(in1,an_val);
+    analogWrite(in2,LOW);
+    digitalWrite(en2,LOW);
+    digitalWrite(in3,LOW);
+    digitalWrite(in4,LOW);
+  }
+  void Stop(){
+    digitalWrite(en1,LOW);
+    digitalWrite(in1,LOW);
+    digitalWrite(in2,LOW);
+    digitalWrite(en2,LOW);
+    digitalWrite(in3,LOW);
+    digitalWrite(in4,LOW);
+  }
+  void assignDirection(byte  data){ // Only operates when the input is eaither 4 directions or stop operation otherwise the input skips.
+    if(data == 48)Stop();
+    else if(data == 49)foreward();
+    else if(data == 50)backward();
+    else if(data == 51)left();
+    else if(data == 52)right();
+    }
+  void counterDirection(byte  data){ // Only operates when the input is eaither 4 directions or stop operation otherwise the input skips.
+    if(data == 48)Stop();
+    else if(data == 50)foreward();
+    else if(data == 49)backward();
+    else if(data == 51)counterLeft();
+    else if(data == 52)counterRight();
+  }
+
+  void loopOperation(byte top){
+    byte currentPos;
+    unsigned long startTime;
+    while(1){
+      Serial.println("This is outer while loop");
+      currentPos = 0;
+      assignDirection(pathArray[currentPos]);
+      startTime = millis();
+      while(1){
+        Serial.println("This is inner while loop");
+        data = Serial.read();
+        if(data == 'X'){
+          assignDirection(48);
+             return;
+        }
+        if(currentPos+1 == top){
+          assignDirection(48);
+          delay(500);
+          return;
+        }
+        if(((millis())-startTime)>=(timeArray[currentPos+1]-timeArray[currentPos])){
+          currentPos++;
+          assignDirection(pathArray[currentPos]);
+          startTime = (millis());
+        }
+      }
+    }
+  }
+
+  void retraceOperation(byte top){
+    Serial.println("Processing retrace Operation..");
+    byte currentPos = top;
+    unsigned long startTime;
+    while(1){
+      Serial.println("This is outer while loop of retrace Mode");
+      counterDirection(pathArray[currentPos]);
+      startTime = millis();
+      while(1){
+        Serial.println("This is inner while loop of Retrace Mode");
+        data = Serial.read();
+        if(data == 'X'){
+          assignDirection(48);
+             return;
+        }
+        
+        if((millis()-startTime)>=(timeArray[currentPos+1]-timeArray[currentPos])){
+          currentPos--;
+          Serial.println(currentPos);
+          if(currentPos == 0 ){
+           assignDirection(48);
+           delay(500);
+           return;              //If bot reaches starting position then foreward i.e loop Operation is to be performed. For that we have to move to the retraceMode and perform loopOperation.
+          }
+          counterDirection(pathArray[currentPos]);
+          startTime = (millis());
+    
+        }
+      }
+    }
+    
+  }
+
+
+void loop() {
+  if(Serial.available()>0){
+    modeSelector = Serial.read();
+    Serial.println(modeSelector);
+    if(modeSelector == 'M'){//Working fine.
+          while(1){
+            data = Serial.read();
+            if(data == -1)continue;
+            Serial.println(data);
+            if(data == 'X'){
+              assignDirection(48);
+              return;
+            }
+            assignDirection(data);
+          }
+     }
+    else if(modeSelector == 'L'){//Working fine.
+      byte top = 0;
+      while(1){
+        //Serial.println("Comming  into the loop!!");
+        //Serial.println(top);
+        data = Serial.read();
+        if(data == -1)continue;// If no data received continue to be in the same direction without updating any values.
+        Serial.println(data);
+        if(data == 'X'){
+          assignDirection(48);// If input equals to 'X' then cancel the whole process and return to the main method.
+          return;
+        }else if(data>=48 && data<=52){
+          //Serial.println("Comming into the loop when given a perfect input...");
+          assignDirection(data);
+          Serial.println(top);
+          timeArray[top] = (millis());
+          pathArray[top] = data;
+          top++;
+        }else if(data == 'S'){// Main loop operation performs when given data = S.(S in this context refers Start).
+          while(1){
+            loopOperation(top);
+            if(data == 'X')return;
+          }
+        }
+      }
+    }
+    else if(modeSelector == 'T'){   //Not responding at all.
+      byte top = 0;
+      while(1){
+        //Serial.println("Comming  into the loop!!");
+        //Serial.println(top);
+        data = Serial.read();
+        //if(data == -1)continue;// If no data received continue to be in the same direction without updating any values.
+        Serial.println(data);
+        if(data == 'X'){
+          assignDirection(48);// If input equals to 'X' then cancel the whole process and return to the main method.
+          return;
+        }else if(data>=48 && data<=52){//Here counterLeft and counterRight is ignored.. because it taken care by the code when performing retrace mode
+        //Serial.println("Comming into the loop when given a perfect input...");
+          assignDirection(data);
+          Serial.println(top);
+          timeArray[top] = millis();
+          pathArray[top] = data;
+          top++;
+        }else if(data == 'S'){// Main loop operation performs when given data = S.(S in this context refers Start).
+                              // Here we have to perform counter operations to retrace back to the initial position.
+
+          Serial.println("Stage 1 Complete");
+          while(1){
+            retraceOperation(top-2);// Here we removed one from the top position since always the last position is stop.
+            if(data == 'X')return;
+            loopOperation(top);
+            if(data == 'X')return;
+          }
+        }
+      }
+    }
+  }
+
+}
